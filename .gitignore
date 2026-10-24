@@ -29,6 +29,8 @@ dist/
 coverage/
 .DS_Store
 *.local
+# Maven build output
+target/
 
 ### IntelliJ IDEA ###
 .idea/
