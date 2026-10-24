@@ -32,5 +32,17 @@ services:
       postgres:
         condition: service_healthy
 
+  frontend:
+    build: ./frontend
+    container_name: frontend-app
+    restart: always
+    ports:
+      - "3000:3000" # UI served on port 3000 as described in the doc
+    environment:
+      # nginx proxies /api/ to the Java backend over the internal network
+      API_UPSTREAM: http://java-app:8080
+    depends_on:
+      - java-app
+
 volumes:
   pgdata:
