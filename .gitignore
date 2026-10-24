@@ -23,6 +23,12 @@
 hs_err_pid*
 replay_pid*
 
+# Frontend
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.local
 # Maven build output
 target/
 
