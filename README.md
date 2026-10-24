@@ -48,6 +48,20 @@ Validation errors use `400` and `{"error":{"code":"...","message":"..."}}`.
 
 `product` is `flasharray`, `flashblade`, or `hyperscale`. `status` is `queued`, `running`, `passed`, `failed`, or `flaky`.
 
+## Seed the database
+
+Sample data lives in `seed/seed.json` (SQL inserts). The schema is created by Liquibase when the API starts, so boot the API once before seeding, then:
+
+```bash
+make seed
+```
+
+This loads 3 pipelines, 7 runs, and 3 notes. It is idempotent (`ON CONFLICT (id) DO NOTHING`), so re-running it is safe. Connection settings default to `localhost:5432` with db/user/password `pulse` (matching `application.yaml`) and can be overridden:
+
+```bash
+make seed PGHOST=db PGUSER=pulse PGPASSWORD=secret
+```
+
 ## Decisions
 
 API calls live in `frontend/src/api`, page state in `frontend/src/state`, and views in `frontend/src/components` and `pages`. The runs list asks for 20 rows at a time and shows **Load more** only when `nextCursor` is set. Elapsed time for queued and running runs ticks once per second and the interval is cleared on navigation. The run page opens one `EventSource` and closes it on unmount. Pipeline create reuses one idempotency key until the same body succeeds and the list refresh completes.
