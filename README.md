@@ -1,10 +1,32 @@
 # Pipeline Pulse
 
-Frontend for a pipeline run dashboard: what ran, what failed, and why.
+A pipeline run dashboard: what ran, what failed, and why. React UI, a Spring Boot (Java 21) API, and PostgreSQL, wired together with Docker Compose.
 
-This branch (`frontend`) contains the React UI only. The API and database are a separate slice and are not started by these commands.
+## Run the whole stack (Docker Compose)
 
-## Run the UI
+The fastest way to run everything — it builds and packages the frontend, builds the Java backend, and starts Postgres:
+
+```bash
+docker compose up --build
+```
+
+| Service    | What it is                                  | URL / port                |
+| ---------- | ------------------------------------------- | ------------------------- |
+| `frontend` | React build served by nginx                 | <http://localhost:3000>   |
+| `java-app` | Spring Boot API                             | <http://localhost:8080>   |
+| `postgres` | PostgreSQL 14                               | `localhost:5433` → `5432` |
+
+The frontend container proxies `/api/` to `java-app:8080` over the internal network, so the UI and the live SSE stream stay same-origin. On first start the API runs Liquibase to create the schema. Stop with `Ctrl+C`; `docker compose down -v` also drops the database volume.
+
+Seed the Compose database once the API is up (note the Compose port/credentials differ from the local defaults):
+
+```bash
+make seed PGPORT=5433 PGUSER=postgres PGPASSWORD=postgres
+```
+
+## Run the UI on its own
+
+For frontend-only development without the containers:
 
 ```bash
 cd frontend
@@ -56,16 +78,38 @@ Sample data lives in `seed/seed.json` (SQL inserts). The schema is created by Li
 make seed
 ```
 
-This loads 3 pipelines, 7 runs, and 3 notes. It is idempotent (`ON CONFLICT (id) DO NOTHING`), so re-running it is safe. Connection settings default to `localhost:5432` with db/user/password `pulse` (matching `application.yaml`) and can be overridden:
+This loads 3 pipelines, 7 runs, and 3 notes. It is idempotent (`ON CONFLICT (id) DO NOTHING`), so re-running it is safe. The command shells out to `psql -f seed/seed.json`.
+
+Connection settings default to `localhost:5432` with db/user/password `pulse` (matching `application.yaml` for a locally run API) and can be overridden on the command line:
 
 ```bash
-make seed PGHOST=db PGUSER=pulse PGPASSWORD=secret
+# local API defaults
+make seed
+
+# Docker Compose Postgres (published on 5433, user/pass postgres)
+make seed PGPORT=5433 PGUSER=postgres PGPASSWORD=postgres
+
+# any other target
+make seed PGHOST=db PGPORT=5432 PGUSER=pulse PGPASSWORD=secret
 ```
+
+Run `make help` to list targets.
+
+## Files in this repo
+
+| Path                                              | Purpose                                                              |
+| ------------------------------------------------- | ------------------------------------------------------------------- |
+| `frontend/`                                       | React 19 + TypeScript UI (Vite dev server, Vitest tests)            |
+| `frontend/Dockerfile`                             | Multi-stage build: Node builds the UI, nginx serves it on port 3000 |
+| `frontend/nginx.conf.template`                    | nginx config; proxies `/api/` to `API_UPSTREAM`                     |
+| `src/`                                            | Spring Boot (Java 21) API — controllers, services, JPA entities     |
+| `src/main/resources/application.yaml`             | API config (datasource, JPA, Liquibase)                             |
+| `src/main/resources/db/changelog/...master.sql`  | Liquibase formatted-SQL schema, applied on API startup              |
+| `Dockerfile`                                      | Builds the Java backend image                                       |
+| `docker-compose.yaml`                             | Orchestrates `frontend` + `java-app` + `postgres`                   |
+| `Makefile`                                        | Developer tasks; `make seed` loads the seed data                    |
+| `seed/seed.json`                                  | Sample data as SQL inserts (despite the `.json` name)               |
 
 ## Decisions
 
 API calls live in `frontend/src/api`, page state in `frontend/src/state`, and views in `frontend/src/components` and `pages`. The runs list asks for 20 rows at a time and shows **Load more** only when `nextCursor` is set. Elapsed time for queued and running runs ticks once per second and the interval is cleared on navigation. The run page opens one `EventSource` and closes it on unmount. Pipeline create reuses one idempotency key until the same body succeeds and the list refresh completes.
-
-## With more time
-
-Wire this UI to the real API in Compose, replace the typed author with the signed-in user, and add a contract test that the seed file round-trips through the screens.
